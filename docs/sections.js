@@ -918,7 +918,7 @@ ORDER BY partition_count DESC;`
     areaSlug: 'risk',
     what: 'Uncommitted prepared transactions (2PC/two-phase commit).',
     lookFor: 'Any row older than 5 minutes (blocks vacuum, holds locks)',
-    action: 'Run COMMIT PREPARED '<gid>'; or ROLLBACK PREPARED '<gid>';.',
+    action: "Run COMMIT PREPARED '<gid>'; or ROLLBACK PREPARED '<gid>';.",
     sql: `SELECT
     gid,
     prepared,
