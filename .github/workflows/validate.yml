@@ -50,9 +50,10 @@ jobs:
         run: |
           SQL_COUNT=$(ls sql/[0-9]*.sql | wc -l)
           echo "Section files: $SQL_COUNT"
-          echo "Expected: 33 (00 prerequisites + 01-32)"
-          if [ "$SQL_COUNT" -ne 33 ]; then
+          echo "Expected: 37 (00 prerequisites + 01-36)"
+          if [ "$SQL_COUNT" -ne 37 ]; then
             echo "Section count mismatch — update docs/SECTIONS.md if you added/removed a section"
+            exit 1
           fi
 
   syntax:
@@ -82,7 +83,15 @@ jobs:
         env:
           PGPASSWORD: pgvitals
         run: |
-          # Enable shared_preload_libraries (requires container restart handled by service)
+          psql -h localhost -U postgres -d pgvitals_test \
+            -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';"
+          docker restart $(docker ps -q --filter ancestor=postgres:16)
+          for i in {1..10}; do
+            if pg_isready -h localhost -U postgres; then
+              break
+            fi
+            sleep 1
+          done
           psql -h localhost -U postgres -d pgvitals_test \
             -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
 

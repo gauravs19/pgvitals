@@ -59,13 +59,13 @@ LIMIT 20;`
     action: 'Add a targeted index on the filtered columns; verify with EXPLAIN.',
     sql: `SELECT
     schemaname,
-    tablename,
+    relname AS tablename,
     seq_scan,
     seq_tup_read,
     idx_scan,
     round(seq_scan::numeric / nullif(seq_scan + idx_scan, 0) * 100, 2)    AS seq_scan_pct,
     n_live_tup,
-    pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) AS total_size
+    pg_size_pretty(pg_total_relation_size(schemaname || '.' || relname)) AS total_size
 FROM pg_stat_user_tables
 WHERE seq_scan > 0
   AND n_live_tup > 10000
@@ -129,14 +129,14 @@ LIMIT 15;`
     action: 'DROP after verifying; check stats_reset date first.',
     sql: `SELECT
     s.schemaname,
-    s.tablename,
-    s.indexname,
+    s.relname AS tablename,
+    s.indexrelname AS indexname,
     pg_size_pretty(pg_relation_size(s.indexrelid)) AS index_size,
     s.idx_scan,
     s.idx_tup_read,
     s.idx_tup_fetch
 FROM pg_stat_user_indexes s
-JOIN pg_index i USING (indexrelid)
+JOIN pg_index i ON i.indexrelid = s.indexrelid
 WHERE s.idx_scan = 0
   AND NOT i.indisprimary
   AND NOT i.indisunique
@@ -244,7 +244,7 @@ SELECT
     actual_pages,
     estimated_min_pages::int,
     round(
-        (1 - estimated_min_pages / nullif(actual_pages, 0)) * 100, 2
+        ((1 - estimated_min_pages / nullif(actual_pages, 0)) * 100)::numeric, 2
     )                                                                      AS bloat_pct_estimate
 FROM index_info
 WHERE index_bytes > 1024 * 1024
@@ -288,8 +288,8 @@ SELECT
         greatest(0, relpages - ceil(reltuples * row_data_width / bs))::bigint * bs
     )                                                                  AS bloat_size_estimate,
     round(
-        greatest(0, 1 - ceil(reltuples * row_data_width / bs)
-                        / nullif(relpages, 0)) * 100, 2
+        (greatest(0, 1 - ceil(reltuples * row_data_width / bs)
+                        / nullif(relpages, 0)) * 100)::numeric, 2
     )                                                                  AS bloat_pct_estimate
 FROM per_table
 WHERE relpages > 10
@@ -362,7 +362,7 @@ LIMIT 30;`
     action: 'Add index for seq scan tables; run VACUUM ANALYZE for high dead_pct.',
     sql: `SELECT
     schemaname,
-    tablename,
+    relname AS tablename,
     seq_scan,
     seq_tup_read,
     idx_scan,
@@ -419,7 +419,7 @@ WHERE backend_type = 'autovacuum worker';`
     action: 'VACUUM ANALYZE tablename; lower autovacuum_vacuum_scale_factor.',
     sql: `SELECT
     schemaname,
-    tablename,
+    relname AS tablename,
     n_dead_tup,
     n_live_tup,
     round(
@@ -431,7 +431,7 @@ WHERE backend_type = 'autovacuum worker';`
     last_analyze,
     last_autoanalyze,
     pg_size_pretty(
-        pg_relation_size(schemaname || '.' || tablename)
+        pg_relation_size(relid)
     )                                                                  AS table_size
 FROM pg_stat_user_tables
 WHERE n_dead_tup > 1000
@@ -448,7 +448,7 @@ LIMIT 25;`
     action: 'ANALYZE tablename; lower autovacuum_analyze_scale_factor for busy tables.',
     sql: `SELECT
     schemaname,
-    tablename,
+    relname AS tablename,
     n_live_tup,
     n_mod_since_analyze,
     round(
@@ -788,7 +788,7 @@ ORDER BY
     action: 'Increase shared_buffers; investigate seq scan storms evicting hot pages.',
     sql: `-- Per table
 SELECT
-    schemaname, tablename,
+    schemaname, relname AS tablename,
     heap_blks_read, heap_blks_hit,
     round(heap_blks_hit::numeric
         / nullif(heap_blks_read + heap_blks_hit, 0) * 100, 2)        AS hit_ratio_pct,
@@ -824,8 +824,8 @@ WHERE datname NOT IN ('template0','template1');`
         checkpoints_req::numeric
         / nullif(checkpoints_timed + checkpoints_req, 0) * 100, 2
     )                                                                 AS forced_pct,
-    round(checkpoint_write_time / 1000, 2)                           AS write_time_sec,
-    round(checkpoint_sync_time / 1000, 2)                            AS sync_time_sec,
+    round((checkpoint_write_time / 1000)::numeric, 2)                AS write_time_sec,
+    round((checkpoint_sync_time / 1000)::numeric, 2)                 AS sync_time_sec,
     buffers_checkpoint,
     buffers_clean,
     maxwritten_clean,
@@ -864,5 +864,93 @@ FROM pg_stat_bgwriter;`
 FROM pg_stat_database
 WHERE datname NOT IN ('template0','template1')
 ORDER BY numbackends DESC;`
+  },
+  {
+    id: '33',
+    title: 'WAL Generation Rate',
+    area: 'Config & Health',
+    areaSlug: 'config',
+    what: 'WAL (Write-Ahead Log) generation volume and rate since stats reset.',
+    lookFor: 'High wal_mb_per_hour (e.g. > 1000 MB/hr) | high fpi_pct (> 20%)',
+    action: 'Enable wal_compression; tune max_wal_size and checkpoint_timeout.',
+    requires: 'PostgreSQL 14+',
+    sql: `SELECT
+    wal_records,
+    wal_fpi,
+    pg_size_pretty(wal_bytes)                                                 AS total_wal_size,
+    round(wal_bytes / 1024.0 / 1024.0, 2)                                     AS total_wal_mb,
+    round(
+        (wal_bytes / 1024.0 / 1024.0)
+        / nullif(extract(epoch from (now() - stats_reset)) / 3600.0, 0)::numeric, 2
+    )                                                                          AS wal_mb_per_hour,
+    round(
+        wal_fpi::numeric / nullif(wal_records, 0) * 100, 2
+    )                                                                          AS fpi_pct,
+    stats_reset
+FROM pg_stat_wal;`
+  },
+  {
+    id: '34',
+    title: 'Partitioned Table Health',
+    area: 'Tables & Storage',
+    areaSlug: 'table',
+    what: 'Partitioned tables, partition counts, and total sizes.',
+    lookFor: 'partition_count > 100 | partition_count = 0',
+    action: 'Merge old partitions or partition by larger range; create missing partitions.',
+    sql: `SELECT
+    n.nspname                                                                  AS schemaname,
+    c.relname                                                                  AS table_name,
+    count(i.inhrelid)                                                          AS partition_count,
+    pg_size_pretty(pg_total_relation_size(c.oid))                              AS total_size,
+    pg_size_pretty(pg_relation_size(c.oid))                                    AS parent_size
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_inherits i ON i.inhparent = c.oid
+WHERE c.relkind = 'p'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+GROUP BY n.nspname, c.relname, c.oid
+ORDER BY partition_count DESC;`
+  },
+  {
+    id: '35',
+    title: 'Open Prepared Transactions',
+    area: 'Critical Risk Signals',
+    areaSlug: 'risk',
+    what: 'Uncommitted prepared transactions (2PC/two-phase commit).',
+    lookFor: 'Any row older than 5 minutes (blocks vacuum, holds locks)',
+    action: 'Run COMMIT PREPARED '<gid>'; or ROLLBACK PREPARED '<gid>';.',
+    sql: `SELECT
+    gid,
+    prepared,
+    owner,
+    database,
+    now() - prepared                                                          AS age,
+    transaction::text                                                          AS xid
+FROM pg_prepared_xacts
+ORDER BY prepared ASC;`
+  },
+  {
+    id: '36',
+    title: 'I/O Stats by Backend (pg_stat_io)',
+    area: 'Config & Health',
+    areaSlug: 'config',
+    what: 'I/O statistics broken down by backend type, target object, and context.',
+    lookFor: 'High evictions | high temp relation reads/writes',
+    action: 'Increase work_mem if temp relation I/O is high; increase shared_buffers if evictions are high; tune checkpointer if writes dominate backends.',
+    requires: 'PostgreSQL 16+, track_io_timing = on (optional for timings)',
+    sql: `SELECT
+    backend_type,
+    object,
+    context,
+    reads,
+    round(read_time::numeric, 2)                                              AS read_time_ms,
+    writes,
+    round(write_time::numeric, 2)                                             AS write_time_ms,
+    hits,
+    evictions,
+    round(reads::numeric / nullif(reads + hits, 0) * 100, 2)                  AS read_pct
+FROM pg_stat_io
+WHERE reads + writes + hits > 0
+ORDER BY reads + writes DESC;`
   }
 ];
