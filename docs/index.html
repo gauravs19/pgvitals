@@ -1365,6 +1365,13 @@
     });
   }
 
+  function copySectionSql(btn, sectionId) {
+    const section = SECTIONS.find(s => s.id === sectionId);
+    if (section) {
+      copyText(btn, section.sql);
+    }
+  }
+
   function renderSidebar() {
     const sidebar = document.getElementById('triage-sidebar');
     if (!sidebar) return;
@@ -1425,7 +1432,7 @@
           <div class="triage-sql-box">
             <div class="triage-sql-bar">
               <span class="triage-sql-lbl">SQL Query</span>
-              <button class="triage-sql-copy" onclick="copyText(this, \`${sqlQuery.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">Copy</button>
+              <button class="triage-sql-copy" onclick="copySectionSql(this, '${step.sectionId}')">Copy</button>
             </div>
             <pre class="triage-sql-code"><code>${escapeHtml(sqlQuery)}</code></pre>
           </div>
