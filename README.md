@@ -2,7 +2,7 @@
 
 # 🩺 pgvitals
 
-**36 copy-paste PostgreSQL diagnostic queries — one for every performance bottleneck.**
+**40 copy-paste PostgreSQL diagnostic queries — one for every performance bottleneck.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-blue?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -304,7 +304,7 @@ pgvitals/
 │   └── reports/                Auto-generated Markdown reports
 ├── docs/
 │   └── SECTIONS.md             Quick reference with thresholds
-├── master.sql                  All 36 sections in one file
+├── master.sql                  All 40 sections in one file
 └── README.md
 ```
 
