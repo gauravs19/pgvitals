@@ -1327,6 +1327,110 @@ ORDER BY reads + writes DESC;
 
 
 -- ============================================================
+-- SECTION 37 · EXTENSION INVENTORY
+-- What    : All installed extensions with version and upgrade availability
+-- Look for: installed_version != latest_version (upgrade available);
+--           extensions installed in public schema (security risk)
+-- Action  : ALTER EXTENSION <name> UPDATE; for stale versions
+-- ============================================================
+
+SELECT
+    e.extname                                                                  AS extension,
+    e.extversion                                                               AS installed_version,
+    ae.default_version                                                         AS latest_version,
+    e.extversion <> ae.default_version                                         AS upgrade_available,
+    n.nspname                                                                  AS schema,
+    e.extrelocatable                                                           AS relocatable,
+    obj_description(e.oid, 'pg_extension')                                    AS description
+FROM pg_extension e
+JOIN pg_available_extensions ae ON ae.name = e.extname
+JOIN pg_namespace n ON n.oid = e.extnamespace
+ORDER BY upgrade_available DESC, e.extname;
+
+
+-- ============================================================
+-- SECTION 38 · FOREIGN DATA WRAPPERS & FOREIGN TABLES
+-- What    : FDW servers, user mappings, and foreign tables
+-- Look for: Stale or unconfigured user mappings; foreign tables with
+--           no active server; unexpected remote servers
+-- Action  : DROP SERVER <name> CASCADE for decommissioned remotes;
+--           verify user mapping credentials are still valid
+-- ============================================================
+
+SELECT
+    fs.srvname                                                                 AS server_name,
+    fdw.fdwname                                                                AS fdw_type,
+    fs.srvoptions                                                              AS server_options,
+    ft.foreign_table_schema,
+    ft.foreign_table_name,
+    ft.foreign_server_name,
+    um.umoptions                                                               AS user_mapping_options
+FROM information_schema.foreign_tables ft
+JOIN pg_foreign_server fs ON fs.srvname = ft.foreign_server_name
+JOIN pg_foreign_data_wrapper fdw ON fdw.oid = fs.srvfdw
+LEFT JOIN pg_user_mappings um
+    ON um.srvname = fs.srvname
+   AND um.usename = current_user
+ORDER BY fs.srvname, ft.foreign_table_schema, ft.foreign_table_name;
+
+
+-- ============================================================
+-- SECTION 39 · FUNCTION PERFORMANCE
+-- What    : Execution stats for user-defined functions and procedures
+-- Look for: High total_time (CPU consumers); high self_pct (inefficient
+--           function body, not delegating work to SQL engine)
+-- Action  : Profile high-self_time functions; cache repeated lookups;
+--           consider set-returning SQL rewrites
+-- Requires: track_functions = 'pl' or 'all' in postgresql.conf
+-- ============================================================
+
+SELECT
+    schemaname,
+    funcname,
+    calls,
+    round(total_time::numeric, 2)                                             AS total_ms,
+    round(self_time::numeric, 2)                                              AS self_ms,
+    round((total_time / nullif(calls, 0))::numeric, 3)                        AS mean_ms,
+    round((self_time / nullif(total_time, 0) * 100)::numeric, 1)              AS self_pct
+FROM pg_stat_user_functions
+WHERE calls > 0
+ORDER BY total_time DESC
+LIMIT 25;
+
+
+-- ============================================================
+-- SECTION 40 · SCHEMA SIZE BREAKDOWN
+-- What    : Storage by schema — tables, indexes, and TOAST
+-- Look for: Schemas growing unexpectedly; index_pct > 60% (over-indexed);
+--           high toast_size relative to table_size (wide column schemas)
+-- Action  : Investigate largest schemas for bloat (sections 11, 12);
+--           review index coverage for schemas with index_pct > 60%
+-- ============================================================
+
+SELECT
+    n.nspname                                                                  AS schema,
+    count(c.oid)                                                               AS table_count,
+    pg_size_pretty(sum(pg_total_relation_size(c.oid)))                         AS total_size,
+    pg_size_pretty(sum(pg_relation_size(c.oid)))                               AS table_size,
+    pg_size_pretty(sum(pg_indexes_size(c.oid)))                                AS index_size,
+    pg_size_pretty(
+        sum(pg_total_relation_size(c.oid))
+        - sum(pg_relation_size(c.oid))
+        - sum(pg_indexes_size(c.oid))
+    )                                                                          AS toast_size,
+    round(
+        sum(pg_indexes_size(c.oid))::numeric
+        / nullif(sum(pg_total_relation_size(c.oid)), 0) * 100, 1
+    )                                                                          AS index_pct
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+GROUP BY n.nspname
+ORDER BY sum(pg_total_relation_size(c.oid)) DESC;
+
+
+-- ============================================================
 -- PART C · TREND & DELTA ANALYSIS
 -- (Requires PART A logging schema populated with snapshots)
 -- ============================================================

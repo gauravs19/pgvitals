@@ -1,6 +1,6 @@
 # pgvitals — Section Reference
 
-Quick reference for all 32 diagnostic sections.
+Quick reference for all 40 diagnostic sections.
 
 ## Query Behavior
 
@@ -77,3 +77,12 @@ Quick reference for all 32 diagnostic sections.
 | 32 | `sql/32_database_summary.sql` | DB-level rollbacks, deadlocks | `rollback_pct > 5%`, `deadlocks > 0` |
 | 33 | `sql/33_wal_generation.sql` | WAL generation volume & rate | `wal_mb_per_hour > 1000` |
 | 36 | `sql/36_pg_stat_io.sql` | I/O statistics by backend type | Evictions / Temp I/O spike |
+
+## Inventory & Extensions
+
+| # | File | What it catches | Key threshold |
+|---|------|-----------------|---------------|
+| 37 | `sql/37_extension_inventory.sql` | Stale or unexpected extensions | `upgrade_available = true` |
+| 38 | `sql/38_foreign_data_wrappers.sql` | Broken FDW servers or orphaned foreign tables | Any unmapped server |
+| 39 | `sql/39_function_performance.sql` | PL/pgSQL CPU hogs | `self_pct > 50%` or `total_ms > 1000` |
+| 40 | `sql/40_schema_size_breakdown.sql` | Schema-level storage growth | `index_pct > 60%`, unexpected growth |
