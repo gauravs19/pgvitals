@@ -6,3 +6,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Runner — credentials & generated reports
+runner/pgvitals.conf
+runner/reports/
+__pycache__/
+*.pyc

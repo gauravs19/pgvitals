@@ -1,0 +1,54 @@
+{
+    "_comment": "pgvitals diagnostic runner configuration",
+    "_docs": "Copy this file to pgvitals.conf and fill in your connection details.",
+
+    "connection": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "your_user",
+        "password": "",
+        "database": "your_database",
+        "sslmode": "prefer"
+    },
+
+    "runner": {
+        "psql_path": "psql",
+        "sql_dir": "../sql",
+        "timeout_seconds": 30,
+        "sections": "all",
+        "skip_sections": []
+    },
+
+    "report": {
+        "output_dir": "./reports",
+        "format": "markdown",
+        "include_raw_output": true,
+        "truncate_rows": 60,
+        "filename_template": "pgvitals_{database}_{timestamp}.md"
+    },
+
+    "profiles": {
+        "local": {
+            "host": "localhost",
+            "port": 5432,
+            "user": "postgres",
+            "password": "",
+            "database": "myapp_production"
+        },
+        "staging": {
+            "host": "staging-db.example.com",
+            "port": 5432,
+            "user": "monitor",
+            "password": "",
+            "database": "myapp_staging"
+        },
+        "rnacentral": {
+            "host": "hh-pgsql-public.ebi.ac.uk",
+            "port": 5432,
+            "user": "reader",
+            "password": "NWDMCE5xdipIjRrp",
+            "database": "pfmegrnargs",
+            "_note": "Public read-only database (European Bioinformatics Institute)"
+        }
+    }
+}

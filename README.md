@@ -122,6 +122,65 @@ DROP SCHEMA perf_monitor CASCADE;
 
 ---
 
+## Diagnostic Runner
+
+pgvitals includes a Python-based runner that executes all sections against a live database and generates a Markdown health report.
+
+### Quick Start
+
+```bash
+cd runner
+
+# Copy sample config and edit your connection details
+cp pgvitals.conf.example pgvitals.conf
+
+# Run all diagnostics
+python run_diagnostics.py
+
+# Use a named profile
+python run_diagnostics.py --profile staging
+
+# Override connection via CLI
+python run_diagnostics.py --host db.example.com -U monitor -d production
+
+# Run specific sections only
+python run_diagnostics.py --sections 01,03,19,26,32
+
+# Skip sections
+python run_diagnostics.py --skip 05,36
+
+# Custom output path
+python run_diagnostics.py --output ./my_report.md
+```
+
+### Configuration
+
+The runner uses a layered config system (lowest → highest priority):
+
+1. `pgvitals.conf` (or `--config <path>`)
+2. Named profiles (`--profile staging`)
+3. Environment variables (`PGPASSWORD`, `PGHOST`, etc.)
+4. CLI arguments (`--host`, `--user`, `--database`)
+
+See [`pgvitals.conf.example`](runner/pgvitals.conf.example) for all available options.
+
+### Report Output
+
+Reports are written to `runner/reports/` with auto-generated filenames and include:
+
+- Executive summary table with status badges
+- Health score breakdown by area
+- Detailed output for every section
+- Prioritized recommendations (critical → medium → info)
+
+> **Note**: `runner/pgvitals.conf` is gitignored to protect credentials. Never commit database passwords.
+
+### Requirements
+
+- Python 3.8+ (no third-party dependencies)
+- `psql` on PATH or configured in `pgvitals.conf`
+
+
 ## Section Reference
 
 <details>
@@ -230,7 +289,7 @@ DROP SCHEMA perf_monitor CASCADE;
 
 ```
 pgvitals/
-├── sql/                        32 individual diagnostic queries
+├── sql/                        36 individual diagnostic queries
 │   ├── 00_prerequisites.sql
 │   ├── 01_slow_queries.sql
 │   ├── 02_temp_pressure.sql
@@ -239,9 +298,13 @@ pgvitals/
 │   ├── schema.sql              perf_monitor schema + tables
 │   ├── capture_snapshot.sql    capture_snapshot() function
 │   └── trend_queries.sql       delta and trend analysis queries
+├── runner/                     Diagnostic runner & report generator
+│   ├── run_diagnostics.py      Main runner script (Python 3.8+)
+│   ├── pgvitals.conf.example   Sample configuration file
+│   └── reports/                Auto-generated Markdown reports
 ├── docs/
 │   └── SECTIONS.md             Quick reference with thresholds
-├── master.sql                  All 32 sections in one file
+├── master.sql                  All 36 sections in one file
 └── README.md
 ```
 
