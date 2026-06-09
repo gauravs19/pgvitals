@@ -17,7 +17,7 @@ SELECT
 FROM pg_database
 ORDER BY age(datfrozenxid) DESC;
 
--- Table level — top 20 oldest tables
+-- Table level - top 20 oldest tables
 SELECT
     n.nspname                                                         AS schemaname,
     c.relname                                                         AS tablename,

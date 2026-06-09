@@ -19,9 +19,15 @@ SELECT
         heap_blks_vacuumed::numeric / nullif(heap_blks_total, 0) * 100, 2
     )                                                                  AS pct_done,
     index_vacuum_count,
-    max_dead_tuples,
-    num_dead_tuples
-FROM pg_stat_progress_vacuum;
+    coalesce(
+        (to_jsonb(v) ->> 'max_dead_tuples')::bigint,
+        (to_jsonb(v) ->> 'max_dead_tuple_bytes')::bigint
+    )                                                                  AS max_dead_tuples_or_bytes,
+    coalesce(
+        (to_jsonb(v) ->> 'num_dead_tuples')::bigint,
+        (to_jsonb(v) ->> 'num_dead_item_ids')::bigint
+    )                                                                  AS num_dead_tuples_or_ids
+FROM pg_stat_progress_vacuum v;
 
 -- How many autovacuum workers are currently active
 SELECT count(*) AS active_autovacuum_workers

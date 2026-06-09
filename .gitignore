@@ -12,3 +12,7 @@ runner/pgvitals.conf
 runner/reports/
 __pycache__/
 *.pyc
+
+# IDE / Agent specific
+.agents/
+skills-lock.json

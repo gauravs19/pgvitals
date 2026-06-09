@@ -208,17 +208,13 @@ def parse_header(sql_text: str) -> dict[str, str]:
 
 
 def strip_header_comments(sql_text: str) -> str:
-    """Remove the leading comment header block, keep inline SQL."""
+    """Remove all whole-line comments and empty lines to keep the body clean and prevent encoding errors."""
     lines = sql_text.splitlines()
     body: list[str] = []
-    in_header = True
     for line in lines:
         s = line.strip()
-        if in_header:
-            if s.startswith("--") or s == "":
-                continue
-            else:
-                in_header = False
+        if s.startswith("--") or s == "":
+            continue
         body.append(line)
     return "\n".join(body).strip()
 
