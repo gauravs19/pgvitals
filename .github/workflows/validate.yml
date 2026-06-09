@@ -49,12 +49,15 @@ jobs:
       - name: Count sections match docs
         run: |
           SQL_COUNT=$(ls sql/[0-9]*.sql | wc -l)
-          echo "Section files: $SQL_COUNT"
-          echo "Expected: 37 (00 prerequisites + 01-36)"
-          if [ "$SQL_COUNT" -ne 37 ]; then
-            echo "Section count mismatch — update docs/SECTIONS.md if you added/removed a section"
+          MAX_NUM=$(ls sql/[0-9]*.sql | grep -oE '^sql/([0-9]+)' | sort -t/ -k2 -n | tail -1 | tr -d 'sql/')
+          EXPECTED=$((MAX_NUM + 1))
+          echo "Section files: $SQL_COUNT (00 through ${MAX_NUM})"
+          if [ "$SQL_COUNT" -ne "$EXPECTED" ]; then
+            echo "Gap detected: expected $EXPECTED files for range 00-${MAX_NUM}, found $SQL_COUNT"
+            echo "Check for missing or duplicate section numbers"
             exit 1
           fi
+          echo "Section count OK: $SQL_COUNT contiguous files"
 
   syntax:
     name: SQL syntax check (PostgreSQL 16)
